@@ -18,3 +18,5 @@ file(GLOB_RECURSE SOURCES "src/*.c")
 add_executable(lpm ${SOURCES} )
 
 install (TARGETS lpm DESTINATION bin)
+
+set_property(TARGET lpm PROPERTY C_STANDARD 99)
