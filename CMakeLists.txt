@@ -17,3 +17,5 @@ include_directories("${PROJECT_SOURCE_DIR}")
 add_executable(lpm src/ina219.c src/Monitor.c src/proccommon.c src/ProcConnector.c src/procnetstat.c src/procstat.c)
 
 install (TARGETS lpm DESTINATION bin)
+
+set_property(TARGET lpm PROPERTY C_STANDARD 99)
