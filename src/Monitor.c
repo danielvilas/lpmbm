@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include "procstat.h"
 #include "procnetstat.h"
+#include "ina219.h"
 #include <sys/types.h>
 #include <sys/time.h>
 #include <unistd.h>
@@ -15,7 +16,7 @@
 
 static volatile bool need_exit = false;
 
-void monitorPid(int pid);
+void monitorPid(int pid, bool i2c);
 int forkCommand(int start_index, int argc, char *argv[]);
 int waitForCommand(char* cmd);
 
@@ -29,7 +30,7 @@ long long current_timestamp() {
 
 void printUsage(char* command)
 {
-	printf("ussage: %s <-s|-w> cmd cmd_params ...\n", command);
+	printf("usage: %s -i <-s|-w> cmd cmd_params ...\n", command);
 }
 
 static void on_sigint(int unused)
@@ -42,6 +43,7 @@ int main(int argc, char *argv[])
 {
 	int start_index = -1;
 	char start_mode = 0;
+	bool i2c=false;
 	if (argc <= 1)
 	{
 		printUsage(argv[0]);
@@ -73,12 +75,21 @@ int main(int argc, char *argv[])
 				start_index = i + 1;
 				start_mode = 'w';
 			}
+			if (strcmp("-i", argv[i]) == 0)
+			{
+				start_index = i + 1;
+				i2c=true;
+			}
 		}
 		if (start_index == -1 || start_index == argc)
 		{
 			printUsage(argv[0]);
 			exit(-1);
 		}
+	}
+
+	if(i2c){
+		init_ina_i2c();
 	}
 	
 	signal(SIGINT, &on_sigint);
@@ -97,7 +108,7 @@ int main(int argc, char *argv[])
 	}
 	if (pid > 0)
 	{
-		monitorPid(pid);
+		monitorPid(pid, i2c);
 	}
 	else
 	{
@@ -139,7 +150,7 @@ int checkRunning(tProcStat* info, bool isChild)
 	return status;
 }
 
-void monitorPid(int pid)
+void monitorPid(int pid, bool i2c)
 {
 	
 	tickspersec = sysconf(_SC_CLK_TCK);
@@ -148,7 +159,9 @@ void monitorPid(int pid)
 	filepath[n] = 0;
 	FILE* out = fopen(filepath, "w");
 	printf("Monitors out to: %s\n", filepath);
-	fprintf(out, "total_time;user_time;sys_time;virtual_size;in_octets;out_octets\n");
+	fprintf(out, "currentTs;total_time;user_time;sys_time;virtual_size;in_octets;out_octets");
+	if(i2c)fprintf(out, ";current");
+	fprintf(out, "\n");
 	tProcStat info;
 	tIpExt netinfo;
 	bool running = true;
@@ -181,7 +194,11 @@ void monitorPid(int pid)
 			num total_out_octets = netinfo.OutOctets; //+ netinfo.OutBcastOctets + netinfo.OutMcastOctets
 			
     
-			fprintf(out, "%lld;%lld;%lld;%lld;%lld;%lld;%lld\n", currentTs , total_time, total_utime, total_stime, info.vsize, total_in_octets, total_out_octets);
+			fprintf(out, "%lld;%lld;%lld;%lld;%lld;%lld;%lld", currentTs , total_time, total_utime, total_stime, info.vsize, total_in_octets, total_out_octets);
+			if(i2c){
+				fprintf(out,";%f",readCurrent());
+			}
+			fprintf(out, "\n");
 			long wait = 100 + currentTs - current_timestamp();
 			if(wait>0) //Prevents infinite wait on debug
 				usleep(wait * 1000);
@@ -194,6 +211,15 @@ void monitorPid(int pid)
 	}
 	fclose(out);
 	printf("Monitored data written to: %s\n", filepath);
+	/*for(int i=0;i<100;i++){
+		long long currentTs = current_timestamp();
+
+		float current = readCurrent();
+		printf("%lld -> %fma (%lld)\n", currentTs, current, current_timestamp()-currentTs);
+		long wait = 100 + currentTs - current_timestamp();
+		if(wait>0) //Prevents infinite wait on debug
+			usleep(wait * 1000);
+	}*/
 	exit(0);
 }
 
