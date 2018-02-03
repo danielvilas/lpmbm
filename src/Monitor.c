@@ -5,6 +5,7 @@
 #include "procstat.h"
 #include "procnetstat.h"
 #include "ina219.h"
+#include "GpioCtl.h"
 #include <sys/types.h>
 #include <sys/time.h>
 #include <unistd.h>
@@ -96,7 +97,9 @@ int main(int argc, char *argv[])
 	siginterrupt(SIGINT, true);
 	signal(SIGTERM, &on_sigint);
 	siginterrupt(SIGTERM, true);
-	
+
+	GPIOExport(POUT);
+	GPIODirection(POUT,OUT);
 	int pid = 0;
 	if (start_mode == 's')
 	{
@@ -167,6 +170,7 @@ void monitorPid(int pid, bool i2c)
 	bool running = true;
 	int status = 0;
 	bool isChild = waitpid(pid, &status, WNOHANG) == 0;
+	bool pin = false;
 	
 	while (running && !need_exit)
 	{	
@@ -199,6 +203,8 @@ void monitorPid(int pid, bool i2c)
 				fprintf(out,";%f",readCurrent());
 			}
 			fprintf(out, "\n");
+			GPIOWrite(POUT,pin?1:0);
+			pin=!pin;
 			long wait = 100 + currentTs - current_timestamp();
 			if(wait>0) //Prevents infinite wait on debug
 				usleep(wait * 1000);
@@ -211,15 +217,8 @@ void monitorPid(int pid, bool i2c)
 	}
 	fclose(out);
 	printf("Monitored data written to: %s\n", filepath);
-	/*for(int i=0;i<100;i++){
-		long long currentTs = current_timestamp();
-
-		float current = readCurrent();
-		printf("%lld -> %fma (%lld)\n", currentTs, current, current_timestamp()-currentTs);
-		long wait = 100 + currentTs - current_timestamp();
-		if(wait>0) //Prevents infinite wait on debug
-			usleep(wait * 1000);
-	}*/
+	GPIOWrite(POUT,0);
+	GPIOUnexport(POUT);
 	exit(0);
 }
 
