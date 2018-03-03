@@ -17,7 +17,7 @@
 
 static volatile bool need_exit = false;
 
-void monitorPid(int pid, bool i2c);
+void monitorPid(int pid, bool i2c, char* name);
 int forkCommand(int start_index, int argc, char *argv[]);
 int waitForCommand(char* cmd);
 
@@ -100,7 +100,12 @@ int main(int argc, char *argv[])
 
 	GPIOExport(POUT);
 	GPIODirection(POUT,OUT);
-	int pid = 0;
+    GPIOWrite(POUT,0);
+    GPIOWrite(POUT,1);
+    GPIOWrite(POUT,0);
+    GPIOWrite(POUT,1);
+
+    int pid = 0;
 	if (start_mode == 's')
 	{
 		pid = forkCommand(start_index, argc, argv);
@@ -111,7 +116,7 @@ int main(int argc, char *argv[])
 	}
 	if (pid > 0)
 	{
-		monitorPid(pid, i2c);
+		monitorPid(pid, i2c,argv[start_index]);
 	}
 	else
 	{
@@ -153,12 +158,12 @@ int checkRunning(tProcStat* info, bool isChild)
 	return status;
 }
 
-void monitorPid(int pid, bool i2c)
+void monitorPid(int pid, bool i2c, char* name)
 {
 	
 	tickspersec = sysconf(_SC_CLK_TCK);
 	char filepath[160];
-	int n = snprintf(filepath, 159, "/tmp/monitor_%i.out", pid);
+	int n = snprintf(filepath, 159, "/tmp/monitor_%s_%i.out",name, pid);
 	filepath[n] = 0;
 	FILE* out = fopen(filepath, "w");
 	printf("Monitors out to: %s\n", filepath);
@@ -171,7 +176,7 @@ void monitorPid(int pid, bool i2c)
 	int status = 0;
 	bool isChild = waitpid(pid, &status, WNOHANG) == 0;
 	bool pin = false;
-	
+    long long start = current_timestamp();
 	while (running && !need_exit)
 	{	
 		long long currentTs = current_timestamp();
@@ -215,10 +220,16 @@ void monitorPid(int pid, bool i2c)
 		}
 
 	}
+    long long end = current_timestamp();
+    printf("Run Time: %lld ms\n", end - start);
 	fclose(out);
 	printf("Monitored data written to: %s\n", filepath);
 	GPIOWrite(POUT,0);
-	GPIOUnexport(POUT);
+    GPIOWrite(POUT,1);
+    GPIOWrite(POUT,0);
+    GPIOWrite(POUT,1);
+
+    GPIOUnexport(POUT);
 	exit(0);
 }
 
