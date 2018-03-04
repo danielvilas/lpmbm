@@ -43,4 +43,5 @@ int readProcNetstat(int queryPid, tIpExt* netInfo)
 	readone(input, &netInfo->OutMcastOctets);
 	readone(input, &netInfo->InBcastOctets);
 	readone(input, &netInfo->OutBcastOctets);
+	fclose(input);
 }

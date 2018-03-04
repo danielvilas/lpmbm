@@ -160,14 +160,25 @@ int checkRunning(tProcStat* info, bool isChild)
 
 void monitorPid(int pid, bool i2c, char* name)
 {
-	
 	tickspersec = sysconf(_SC_CLK_TCK);
+    char *ptr = strrchr( name, '/' );
+	if(ptr==NULL){
+        ptr=name;
+    } else{
+        ptr++;
+    }
+
 	char filepath[160];
-	int n = snprintf(filepath, 159, "/tmp/monitor_%s_%i.out",name, pid);
+	int n = snprintf(filepath, 159, "/tmp/monitor_%s_%i.out",ptr, pid);
 	filepath[n] = 0;
 	FILE* out = fopen(filepath, "w");
+    if(out==NULL){
+        perror(filepath);
+        exit(-1);
+    }
 	printf("Monitors out to: %s\n", filepath);
-	fprintf(out, "currentTs;total_time;user_time;sys_time;virtual_size;in_octets;out_octets");
+
+fprintf(out, "currentTs;total_time;user_time;sys_time;virtual_size;in_octets;out_octets");
 	if(i2c)fprintf(out, ";current");
 	fprintf(out, "\n");
 	tProcStat info;
