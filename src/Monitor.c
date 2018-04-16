@@ -31,7 +31,7 @@ long long current_timestamp() {
 
 void printUsage(char* command)
 {
-	printf("usage: %s -i <-s|-w> cmd cmd_params ...\n", command);
+	printf("usage: %s -i -o OutFile <-s|-w> cmd cmd_params ...\n", command);
 }
 
 static void on_sigint(int unused)
@@ -40,11 +40,29 @@ static void on_sigint(int unused)
 	need_exit = true;
 }
 
+void fillPath(char* name, char* filename, char* filepath, int pid){
+	if(filename!=0){
+		int n = snprintf(filepath, 159, "%s", filename);
+		filepath[n] = 0;
+	}else{
+		char *ptr = strrchr( name, '/' );
+		if(ptr==NULL){
+	        ptr=name;
+	    } else{
+	        ptr++;
+	    }
+	
+		int n = snprintf(filepath, 159, "/tmp/monitor_%s_%i.out",ptr, pid);
+		filepath[n] = 0;
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	int start_index = -1;
 	char start_mode = 0;
 	bool i2c=false;
+	char *filename=0;
 	if (argc <= 1)
 	{
 		printUsage(argv[0]);
@@ -81,6 +99,11 @@ int main(int argc, char *argv[])
 				start_index = i + 1;
 				i2c=true;
 			}
+			if (strcmp("-o", argv[i]) == 0)
+			{
+				start_index = i + 2;
+				filename=argv[i+1];
+			}
 		}
 		if (start_index == -1 || start_index == argc)
 		{
@@ -88,6 +111,8 @@ int main(int argc, char *argv[])
 			exit(-1);
 		}
 	}
+
+	char filepath[255];
 
 	if(i2c){
 		init_ina_i2c();
@@ -116,7 +141,8 @@ int main(int argc, char *argv[])
 	}
 	if (pid > 0)
 	{
-		monitorPid(pid, i2c,argv[start_index]);
+		fillPath(argv[start_index], filename, filepath, pid);
+		monitorPid(pid, i2c,filepath);
 	}
 	else
 	{
@@ -158,19 +184,10 @@ int checkRunning(tProcStat* info, bool isChild)
 	return status;
 }
 
-void monitorPid(int pid, bool i2c, char* name)
+void monitorPid(int pid, bool i2c, char* filepath)
 {
 	tickspersec = sysconf(_SC_CLK_TCK);
-    char *ptr = strrchr( name, '/' );
-	if(ptr==NULL){
-        ptr=name;
-    } else{
-        ptr++;
-    }
-
-	char filepath[160];
-	int n = snprintf(filepath, 159, "/tmp/monitor_%s_%i.out",ptr, pid);
-	filepath[n] = 0;
+    
 	FILE* out = fopen(filepath, "w");
     if(out==NULL){
         perror(filepath);
